@@ -1,0 +1,36 @@
+name: docker-build
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+      - name: Docker login
+        run: |
+          docker login -u ${{ secrets.hubuser }} -p ${{ secrets.hubpass }}
+      - name: Build and push Docker image
+        run: |
+          # Get the list of tags from Docker Hub
+          DOCKER_TAGS=$(curl -sS "https://registry.hub.docker.com/v2/repositories/${{ secrets.hubuser }}/$IMAGE_NAME/tags/" | jq -r '.results|.[]|.name')
+          echo $DOCKER_TAGS
+          # Get the latest version
+          CURRENT_VERSION=$(echo "$DOCKER_TAGS" | sort -V | tail -n 1)
+          # Increment the version number
+          NEW_VERSION=$(awk "BEGIN{printf \"%.1f\n\", $CURRENT_VERSION + 0.1}")
+          # Build the new Docker image with the incremented version
+          docker build -t ${{ secrets.hubuser }}/$IMAGE_NAME:$NEW_VERSION .
+          # Push the new image to Docker Hub
+          docker push ${{ secrets.hubuser }}/$IMAGE_NAME:$NEW_VERSION
+        env:
+          IMAGE_NAME: python
